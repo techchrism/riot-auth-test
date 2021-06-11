@@ -87,17 +87,31 @@ async function login({username, password}, jar)
         headers
     })).json();
     
-    if(authResponse['error'] === 'auth_failure')
+    if(authResponse['error'])
     {
-        throw new Error('Invalid Riot username or password');
+        if(authResponse['error'] === 'auth_failure')
+        {
+            throw new Error('Invalid Riot username or password');
+        }
+        else
+        {
+            throw new Error(`Unknown error: ${authResponse}`);
+        }
     }
     
-    const hash = (new URL(authResponse['uri'])).hash;
-    const searchParams = new URLSearchParams(hash.slice(1));
-    return {
-        accessToken: searchParams['access_token'],
-        expiresIn: searchParams['expires_in']
-    };
+    try
+    {
+        const hash = (new URL(authResponse['response']['parameters']['uri'])).hash;
+        const searchParams = new URLSearchParams(hash.slice(1));
+        return {
+            accessToken: searchParams.get('access_token'),
+            expiresIn: searchParams.get('expires_in')
+        };
+    }
+    catch(err)
+    {
+        throw new Error(`Bad url: ${JSON.stringify(authResponse)}`);
+    }
 }
 
 async function createCookiesDir()
@@ -160,7 +174,6 @@ async function createCookiesDir()
         logger.info(`Got token: ${loginData.accessToken}`);
         logger.info(`Expires in ${loginData.expiresIn} seconds`);
     }
-    
     
     
 })();
