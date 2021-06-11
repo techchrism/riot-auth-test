@@ -113,26 +113,54 @@ async function createCookiesDir()
 {
     const logger = createLogger();
     
-    logger.info('Getting credentials');
-    const creds = await getCreds();
-    logger.info(`Username: ${creds.username}`);
-    
-    logger.info('Logging in...');
     await createCookiesDir();
     const jar = new CookieJar(path.join(__dirname, 'cookies', 'jar.json'));
-    let loginData;
-    try
+    const longjar = new CookieJar(path.join(__dirname, 'cookies', 'long-jar.json'));
+    
+    if(process.argv.length > 2 && process.argv[2] === '--resume')
     {
-        loginData = await login(creds, jar);
+        logger.info('Resuming...');
+        await jar.load();
+        await longjar.load();
     }
-    catch(e)
+    else
     {
-        logger.error('Login failed');
-        logger.error(e.toString());
-        return;
+        logger.info('Getting credentials');
+        const creds = await getCreds();
+        logger.info(`Username: ${creds.username}`);
+    
+        logger.info('Logging in for repeated tests...');
+        let loginData;
+        try
+        {
+            loginData = await login(creds, jar);
+        }
+        catch(e)
+        {
+            logger.error('Login failed');
+            logger.error(e.toString());
+            return;
+        }
+        await jar.save();
+        logger.info(`Got token: ${loginData.accessToken}`);
+        logger.info(`Expires in ${loginData.expiresIn} seconds`);
+    
+        logger.info('Logging in for long-term test...');
+        try
+        {
+            loginData = await login(creds, longjar);
+        }
+        catch(e)
+        {
+            logger.error('Login failed');
+            logger.error(e.toString());
+            return;
+        }
+        await longjar.save();
+        logger.info(`Got token: ${loginData.accessToken}`);
+        logger.info(`Expires in ${loginData.expiresIn} seconds`);
     }
-    await jar.save();
-    logger.info(`Got token: ${loginData.accessToken}`);
-    logger.info(`Expires in ${loginData.expiresIn} seconds`);
+    
+    
     
 })();
