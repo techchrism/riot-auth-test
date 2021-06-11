@@ -2,6 +2,7 @@ const readline = require('readline');
 const Writable = require('stream').Writable;
 const winston = require('winston');
 const path = require('path');
+const fs = require('fs');
 const esmImport = require('esm')(module);
 const {CookieJar, fetch} = esmImport('node-fetch-cookies');
 
@@ -67,6 +68,7 @@ async function login({username, password}, jar)
         'Content-Type': 'application/json',
         'User-Agent': ''
     };
+    
     // Set up cookies for auth request
     await (await fetch(jar, 'https://auth.riotgames.com/api/v1/authorization', {
         method: 'POST',
@@ -98,6 +100,15 @@ async function login({username, password}, jar)
     };
 }
 
+async function createCookiesDir()
+{
+    try
+    {
+        await fs.promises.mkdir(path.join(__dirname, 'cookies'));
+    }
+    catch(ignored) {}
+}
+
 (async () =>
 {
     const logger = createLogger();
@@ -107,6 +118,7 @@ async function login({username, password}, jar)
     logger.info(`Username: ${creds.username}`);
     
     logger.info('Logging in...');
+    await createCookiesDir();
     const jar = new CookieJar(path.join(__dirname, 'cookies', 'jar.json'));
     let loginData;
     try
@@ -119,6 +131,7 @@ async function login({username, password}, jar)
         logger.error(e.toString());
         return;
     }
+    await jar.save();
     logger.info(`Got token: ${loginData.accessToken}`);
     logger.info(`Expires in ${loginData.expiresIn} seconds`);
     
