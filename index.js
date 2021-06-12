@@ -152,6 +152,19 @@ async function jarLogin(logger, jar, creds)
     return loginData;
 }
 
+function getSSIDCookie(jar)
+{
+    const domainCookies = jar.cookiesDomain('auth.riotgames.com');
+    for(const cookie of domainCookies)
+    {
+        if(cookie.name === 'ssid')
+        {
+            return cookie;
+        }
+    }
+    return null;
+}
+
 (async () =>
 {
     const logger = createLogger();
@@ -187,26 +200,66 @@ async function jarLogin(logger, jar, creds)
         }
     }
     
-    const domainCookies = jar.cookiesDomain('auth.riotgames.com');
-    for(const cookie of domainCookies)
+    const printCookieExpireInfo = () =>
     {
-        if(cookie.name === 'ssid')
+        [{name: 'repeated', jar}, {name: 'long-term', jar: longjar}].map(({name, jar}) =>
         {
-            if(cookie.hasExpired(true))
+            return {name, cookie: getSSIDCookie(jar)};
+        }).forEach(({name, cookie}) =>
+        {
+            if(cookie === null || cookie.hasExpired(true))
             {
-                logger.info('Cookie expired!');
+                logger.info(`${name} ssid cookie expired!`);
             }
             else
             {
                 const expiresIn = cookie.expiry.getTime() - (new Date()).getTime();
-                logger.info(`Expires in ${prettyMilliseconds(expiresIn)}`);
+                logger.info(`${name} ssid cookie expires in ${prettyMilliseconds(expiresIn)} (at ${cookie.expiry.getTime()})`);
             }
-            break;
+        });
+    };
+    
+    const checkCookiesAndGenerateToken = async () =>
+    {
+        try
+        {
+            logger.info('   ---   Checking Cookies   ---   ');
+            printCookieExpireInfo();
+            logger.info('Generating token for repeated tests...');
+            const reauthData = await reauthToken(jar);
+            logger.info(JSON.stringify(reauthData));
+    
+            const longCookie = getSSIDCookie(longjar);
+            if(longCookie.hasExpired(true))
+            {
+                logger.info('Long-term cookie has expired! Modifying expiration...');
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                longCookie.expiry = tomorrow;
+                logger.info('New expiration:');
+                printCookieExpireInfo();
+                logger.info('Trying to generate token...');
+                const longReauthData = await reauthToken(longjar);
+                logger.info(JSON.stringify(longReauthData));
+            }
+            
+            logger.info('Current expirations:');
+            printCookieExpireInfo();
+            logger.info('Saving cookies...');
+            await Promise.all([jar.save(), longjar.save()]);
+    
+            logger.info('   ---   Finished Checking Cookies   ---   ');
         }
-    }
+        catch(e)
+        {
+            logger.error('Error while checking cookies and generating tokens:');
+            logger.error(e.toString());
+        }
+    };
     
-    //const reauthData = await reauthToken(jar);
-    //console.log(reauthData);
-    //await jar.save();
+    // Run checks on startup
+    await checkCookiesAndGenerateToken();
     
+    // Run checks every 45 minutes
+    setInterval(checkCookiesAndGenerateToken, 45 * 60 * 1000);
 })();
