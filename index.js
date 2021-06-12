@@ -143,6 +143,15 @@ async function createCookiesDir()
     catch(ignored) {}
 }
 
+async function jarLogin(logger, jar, creds)
+{
+    const loginData = await login(creds, jar);
+    await jar.save();
+    logger.info(`Got token: ${loginData.accessToken}`);
+    logger.info(`Expires in ${loginData.expiresIn} seconds`);
+    return loginData;
+}
+
 (async () =>
 {
     const logger = createLogger();
@@ -162,12 +171,13 @@ async function createCookiesDir()
         logger.info('Getting credentials');
         const creds = await getCreds();
         logger.info(`Username: ${creds.username}`);
-    
-        logger.info('Logging in for repeated tests...');
-        let loginData;
+        
         try
         {
-            loginData = await login(creds, jar);
+            logger.info('Logging in for repeated tests...');
+            await jarLogin(logger, jar, creds);
+            logger.info('Logging in for long-term test...');
+            await jarLogin(logger, longjar, creds);
         }
         catch(e)
         {
@@ -175,24 +185,6 @@ async function createCookiesDir()
             logger.error(e.toString());
             return;
         }
-        await jar.save();
-        logger.info(`Got token: ${loginData.accessToken}`);
-        logger.info(`Expires in ${loginData.expiresIn} seconds`);
-    
-        /*logger.info('Logging in for long-term test...');
-        try
-        {
-            loginData = await login(creds, longjar);
-        }
-        catch(e)
-        {
-            logger.error('Login failed');
-            logger.error(e.toString());
-            return;
-        }
-        await longjar.save();
-        logger.info(`Got token: ${loginData.accessToken}`);
-        logger.info(`Expires in ${loginData.expiresIn} seconds`);*/
     }
     
     const domainCookies = jar.cookiesDomain('auth.riotgames.com');
@@ -213,8 +205,8 @@ async function createCookiesDir()
         }
     }
     
-    const reauthData = await reauthToken(jar);
-    console.log(reauthData);
-    await jar.save();
+    //const reauthData = await reauthToken(jar);
+    //console.log(reauthData);
+    //await jar.save();
     
 })();
