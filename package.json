@@ -12,6 +12,7 @@
   "dependencies": {
     "esm": "^3.2.25",
     "node-fetch-cookies": "^2.0.2",
+    "pretty-ms": "^7.0.1",
     "winston": "^3.3.3"
   }
 }

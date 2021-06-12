@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const esmImport = require('esm')(module);
 const {CookieJar, fetch} = esmImport('node-fetch-cookies');
+const prettyMilliseconds = require('pretty-ms');
 
 async function getCreds()
 {
@@ -62,6 +63,22 @@ function createLogger()
     });
 }
 
+function getTokenDataFromURL(url)
+{
+    try
+    {
+        const searchParams = new URLSearchParams((new URL(url)).hash.slice(1));
+        return {
+            accessToken: searchParams.get('access_token'),
+            expiresIn: searchParams.get('expires_in')
+        };
+    }
+    catch(err)
+    {
+        throw new Error(`Bad url: "${url}"`);
+    }
+}
+
 async function login({username, password}, jar)
 {
     const headers = {
@@ -82,7 +99,9 @@ async function login({username, password}, jar)
         body: JSON.stringify({
             type: 'auth',
             username,
-            password
+            password,
+            remember: true,
+            language: 'en_US'
         }),
         headers
     })).json();
@@ -99,19 +118,20 @@ async function login({username, password}, jar)
         }
     }
     
-    try
-    {
-        const hash = (new URL(authResponse['response']['parameters']['uri'])).hash;
-        const searchParams = new URLSearchParams(hash.slice(1));
-        return {
-            accessToken: searchParams.get('access_token'),
-            expiresIn: searchParams.get('expires_in')
-        };
-    }
-    catch(err)
-    {
-        throw new Error(`Bad url: ${JSON.stringify(authResponse)}`);
-    }
+    return getTokenDataFromURL(authResponse['response']['parameters']['uri']);
+}
+
+async function reauthToken(jar)
+{
+    const response = await fetch(jar, 'https://auth.riotgames.com/authorize?redirect_uri=https%3A%2F%2Fplayvalorant.com%2Fopt_in&client_id=play-valorant-web-prod&response_type=token%20id_token', {
+        headers: {
+            'User-Agent': ''
+        },
+        follow: 0,
+        redirect: 'manual'
+    });
+    const redirectUri = response.headers.get('location');
+    return getTokenDataFromURL(redirectUri);
 }
 
 async function createCookiesDir()
@@ -159,7 +179,7 @@ async function createCookiesDir()
         logger.info(`Got token: ${loginData.accessToken}`);
         logger.info(`Expires in ${loginData.expiresIn} seconds`);
     
-        logger.info('Logging in for long-term test...');
+        /*logger.info('Logging in for long-term test...');
         try
         {
             loginData = await login(creds, longjar);
@@ -172,8 +192,29 @@ async function createCookiesDir()
         }
         await longjar.save();
         logger.info(`Got token: ${loginData.accessToken}`);
-        logger.info(`Expires in ${loginData.expiresIn} seconds`);
+        logger.info(`Expires in ${loginData.expiresIn} seconds`);*/
     }
     
+    const domainCookies = jar.cookiesDomain('auth.riotgames.com');
+    for(const cookie of domainCookies)
+    {
+        if(cookie.name === 'ssid')
+        {
+            if(cookie.hasExpired(true))
+            {
+                logger.info('Cookie expired!');
+            }
+            else
+            {
+                const expiresIn = cookie.expiry.getTime() - (new Date()).getTime();
+                logger.info(`Expires in ${prettyMilliseconds(expiresIn)}`);
+            }
+            break;
+        }
+    }
+    
+    const reauthData = await reauthToken(jar);
+    console.log(reauthData);
+    await jar.save();
     
 })();
