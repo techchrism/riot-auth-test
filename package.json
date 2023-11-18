@@ -13,5 +13,9 @@
   "devDependencies": {
     "@types/node": "^20.9.2",
     "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "winston": "^3.11.0",
+    "winston-daily-rotate-file": "^4.7.1"
   }
 }
