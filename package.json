@@ -1,18 +1,17 @@
 {
   "name": "riot-auth-test",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Hacky project to test stability of generating new tokens from login cookies instead of re-authenticating",
+  "main": "./dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "watch": "tsc --watch"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "esm": "^3.2.25",
-    "node-fetch-cookies": "^2.0.2",
-    "pretty-ms": "^7.0.1",
-    "winston": "^3.3.3"
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.9.2",
+    "typescript": "^5.2.2"
   }
 }
