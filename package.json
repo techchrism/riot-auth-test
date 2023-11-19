@@ -12,9 +12,11 @@
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.9.2",
+    "@types/set-cookie-parser": "^2.4.6",
     "typescript": "^5.2.2"
   },
   "dependencies": {
+    "set-cookie-parser": "^2.6.0",
     "winston": "^3.11.0",
     "winston-daily-rotate-file": "^4.7.1"
   }
