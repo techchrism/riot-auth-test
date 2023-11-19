@@ -59,9 +59,10 @@ async function main() {
                 const ssid = parsedCookies.find(c => c.name === 'ssid')?.value
                 if(ssid === undefined || ssid.length === 0) {
                     logger.verbose('Invalid ssid from parsed cookies!')
-                    return [false, '']
+                    return [false, cookies[0].value]
                 }
-                return [isReauthSuccessful(response), ssid]
+                const success = isReauthSuccessful(response)
+                return [success, success ? ssid : cookies[0].value]
             }
         },
         {
@@ -73,7 +74,8 @@ async function main() {
                 const response = await reauth(cookies)
                 const parsedCookies = parseSetCookieString(response.headers.get('set-cookie') ?? '')
 
-                return [isReauthSuccessful(response), mergeCookies(cookies, parsedCookies)]
+                const success = isReauthSuccessful(response)
+                return [success, success ? mergeCookies(cookies, parsedCookies) : cookies]
             }
         }
     ]
