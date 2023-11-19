@@ -93,7 +93,7 @@ async function main() {
             logger.verbose(`${runner.name} result: ${result}`)
 
             if(result !== 'skipped') {
-                await delay(10_000)
+                await delay(60_000)
             }
         }
         logger.info(`Results:\n${results.map(r => `\t${iconForSkippableResult(r.result)} - ${r.name}`).join('\n')}`)
