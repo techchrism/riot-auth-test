@@ -28,3 +28,9 @@ In previous tests, a failed test might pass again on the next attempt for unknow
  - Some tests will occasionally fail, but pass on the next attempt
    - The most common to fail is the "Refreshed SSID" test
    - Once the tests have been running for a bit longer, I'll publish failure rates
+
+### 2023-11-29
+ - The "Refreshed Cookies" test is still passing
+ - On `2023-11-26T04:04:15.178Z`, all the tests except the "Refreshed Cookies" began failing
+   - The first tests ran were on `2023-11-19T06:33:23.048Z` (and the original cookies were generated slightly before this) which marks about one week of successful tests before failure
+   - This would seem to indicate that storing and refreshing just the `ssid` cookie is not long-term stable
