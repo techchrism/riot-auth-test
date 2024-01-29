@@ -4,10 +4,13 @@ import {Cookie, createCookieString, mergeCookies, parseCookieString, parseSetCoo
 import Response = NodeJS.fetch.Response
 import {createSkippableTestRunner, iconForSkippableResult, Test} from './util/testRunner'
 
-async function reauth(cookies: Cookie[]) {
+const webReauthURL = 'https://auth.riotgames.com/authorize?redirect_uri=https%3A%2F%2Fplayvalorant.com%2Fopt_in&client_id=play-valorant-web-prod&response_type=token%20id_token&nonce=1'
+const riotReauthURL = 'https://auth.riotgames.com/authorize?client_id=riot-client&response_type=id_token%20token&redirect_uri=http%3A%2F%2Flocalhost%2Fredirect&scope=read'
+
+async function reauth(cookies: Cookie[], url: string) {
     const cookieStr = createCookieString(cookies)
     logger.verbose(`Reauthing with cookie string "${cookieStr}"`)
-    const response = await fetch('https://auth.riotgames.com/authorize?redirect_uri=https%3A%2F%2Fplayvalorant.com%2Fopt_in&client_id=play-valorant-web-prod&response_type=token%20id_token&nonce=1', {
+    const response = await fetch(url, {
         method: 'GET',
         redirect: 'manual',
         headers: {
@@ -20,64 +23,73 @@ async function reauth(cookies: Cookie[]) {
 }
 
 function isReauthSuccessful(response: Response) {
-    return response.headers.get('location')?.startsWith('https://playvalorant.com/opt_in') === true
+    return response.headers.get('location')?.includes('access_token=') === true
+}
+
+function getRequiredEnvVar(name: string) {
+    const value = process.env[name]
+    if(value === undefined || value.length === 0) {
+        logger.error(`Required environment variable "${name}" is not set!`)
+        process.exit(1)
+    }
+    return value
+
 }
 
 async function main() {
-    const initialCookieStr = process.env['COOKIES']
-    if(initialCookieStr === undefined || initialCookieStr.length === 0) {
-        logger.error('Initial cookie string is not set!')
-        process.exit(1)
-    }
-    logger.verbose(`Starting cookie string: "${initialCookieStr}"`)
+    const initialWebCookieStr = getRequiredEnvVar('INITIAL_WEB_COOKIES')
+    const initialRiotCookieStr = getRequiredEnvVar('INITIAL_RIOT_COOKIES')
+    const initialRiotSecondaryCookieStr = getRequiredEnvVar('INITIAL_RIOT_SECONDARY_COOKIES')
 
-    const initialCookies = parseCookieString(initialCookieStr)
-    logger.verbose(`Parsed initial cookies: ${JSON.stringify(initialCookies)}`)
-    logger.info(`Loaded ${initialCookies.length} cookie${initialCookies.length === 1 ? '' : 's'}`)
+    logger.verbose(`Starting web cookie string: "${initialWebCookieStr}"`)
+    logger.verbose(`Starting riot cookie string: "${initialRiotCookieStr}"`)
+    logger.verbose(`Starting riot secondary cookie string: "${initialRiotSecondaryCookieStr}"`)
+
+    const initialWebCookies = parseCookieString(initialWebCookieStr)
+    const initialRiotCookies = parseCookieString(initialRiotCookieStr)
+    const initialRiotSecondaryCookies = parseCookieString(initialRiotSecondaryCookieStr)
+
+    logger.verbose(`Parsed web initial cookies: ${JSON.stringify(initialWebCookies)}`)
+    logger.verbose(`Parsed riot initial cookies: ${JSON.stringify(initialRiotCookies)}`)
+    logger.verbose(`Parsed riot secondary initial cookies: ${JSON.stringify(initialRiotSecondaryCookies)}`)
+
+    logger.info(`Loaded ${initialWebCookies.length} web cookie${initialWebCookies.length === 1 ? '' : 's'}`)
+    logger.info(`Loaded ${initialRiotCookies.length} riot cookie${initialRiotCookies.length === 1 ? '' : 's'}`)
+    logger.info(`Loaded ${initialRiotSecondaryCookies.length} riot secondary cookie${initialRiotSecondaryCookies.length === 1 ? '' : 's'}`)
 
     const tests: Test<any>[] = [
+        // Original cookie reauths
         {
-            name: 'Original Cookies',
+            name: 'Original Web Cookies - Web Reauth',
             run: async () => {
-                return isReauthSuccessful(await reauth(initialCookies))
+                return isReauthSuccessful(await reauth(initialWebCookies, webReauthURL))
             }
         },
         {
-            name: 'Original SSID',
+            name: 'Original Riot Cookies - Riot Reauth',
             run: async () => {
-                return isReauthSuccessful(await reauth(initialCookies.filter(c => c.name === 'ssid')))
+                return isReauthSuccessful(await reauth(initialRiotCookies, riotReauthURL))
             }
         },
-        {
-            name: 'Refreshed SSID',
-            run: async (prevSSID: string | undefined): Promise<[boolean, string]> => {
-                if(prevSSID !== undefined && prevSSID.length === 0) return [false, '']
-
-                const cookies = prevSSID === undefined ? initialCookies.filter(c => c.name === 'ssid') : [{name: 'ssid', value: prevSSID}]
-                const response = await reauth(cookies)
-                const parsedCookies = parseSetCookieString(response.headers.get('set-cookie') ?? '')
-                const ssid = parsedCookies.find(c => c.name === 'ssid')?.value
-                if(ssid === undefined || ssid.length === 0) {
-                    logger.verbose('Invalid ssid from parsed cookies!')
-                    return [false, cookies[0].value]
-                }
-                const success = isReauthSuccessful(response)
-                return [success, success ? ssid : cookies[0].value]
-            }
-        },
-        {
-            name: 'Refreshed Cookies',
+        // Refreshed cookie reauths
+        ...[
+            {name: 'web', method: 'web', initial: initialWebCookies, url: webReauthURL},
+            {name: 'riot', method: 'riot', initial: initialRiotCookies, url: riotReauthURL},
+            {name: 'riot secondary', method: 'riot', initial: initialRiotCookies, url: riotReauthURL},
+            {name: 'riot secondary', method: 'web', initial: initialRiotCookies, url: riotReauthURL}
+        ].map(t => ({
+            name: `Refreshed cookies - ${t.name} using ${t.method} reauth`,
             run: async (prevCookies: Cookie[] | undefined): Promise<[boolean, Cookie[]]> => {
                 if(prevCookies !== undefined && prevCookies.length === 0) return [false, []]
 
-                const cookies = prevCookies === undefined ? initialCookies : prevCookies
-                const response = await reauth(cookies)
+                const cookies = prevCookies === undefined ? t.initial : prevCookies
+                const response = await reauth(cookies, webReauthURL)
                 const parsedCookies = parseSetCookieString(response.headers.get('set-cookie') ?? '')
 
                 const success = isReauthSuccessful(response)
                 return [success, success ? mergeCookies(cookies, parsedCookies) : cookies]
             }
-        }
+        }))
     ]
     const runners = tests.map(t => ({name: t.name, run: createSkippableTestRunner(t)}))
     logger.info(`Initialized ${tests.length} tests`)
